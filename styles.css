@@ -218,8 +218,39 @@ body.is-open .right-off { opacity: 0; }
   animation: hubIn 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
 }
 
-.face-swap {
-  animation: faceSwap 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+div.face-roll {
+  display: flex;
+  justify-content: center;
+}
+
+span.face-roll {
+  display: inline-flex;
+  vertical-align: top;
+}
+
+.glyph,
+.glyph-mask {
+  display: inline-block;
+  height: 1.28em;
+  line-height: 1.28;
+  vertical-align: top;
+}
+
+.glyph-mask {
+  overflow: hidden;
+  text-align: center;
+}
+
+.glyph-strip {
+  display: block;
+  animation: glyphRise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.glyph-strip span {
+  display: block;
+  height: 1.28em;
+  line-height: 1.28;
+  text-align: center;
 }
 
 .hub:focus-visible .hub-dot {
@@ -240,17 +271,58 @@ body.is-open .right-off { opacity: 0; }
   mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 95%, transparent 100%);
 }
 
-.marker {
+.wheel-shade {
   position: absolute;
   left: 0;
-  top: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--blue);
-  box-shadow: 0 0 14px rgba(43, 92, 255, 0.75);
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.45) 42%, #000 100%);
   pointer-events: none;
   opacity: 0;
+  transition: opacity 0.6s ease;
+}
+
+body.is-open .wheel-shade {
+  opacity: 1;
+}
+
+.marker {
+  position: fixed;
+  right: 8px;
+  top: 50%;
+  z-index: 6;
+  width: 52px;
+  height: 52px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.marker-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 14px rgba(43, 92, 255, 0.9);
+  transform: translate(-50%, -50%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+}
+
+.marker:hover .marker-dot,
+.marker:focus-visible .marker-dot {
+  transform: translate(-50%, -50%) scale(1.8);
+  box-shadow: 0 0 24px rgba(43, 92, 255, 1);
+}
+
+.marker:focus-visible {
+  outline: none;
 }
 
 .city {
@@ -298,16 +370,56 @@ body.is-open .right-off { opacity: 0; }
   to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
 
-@keyframes faceSwap {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes glyphRise {
+  from { transform: translateY(0); }
+  to { transform: translateY(-1.28em); }
+}
+
+@media (max-width: 760px) {
+  :root {
+    --clock: min(88vw, 72vh);
+    --thick: calc(var(--clock) * 0.016);
+    --mid: calc(var(--clock) * 0.012);
+    --thin: calc(var(--clock) * 0.006);
+  }
+
+  .labels {
+    font-size: calc(var(--clock) * 0.032);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+
+  .hub-dot {
+    width: calc(var(--clock) * 0.052);
+    height: calc(var(--clock) * 0.052);
+  }
+
+  .ring circle {
+    transform-box: fill-box;
+    transform-origin: center;
+    transform: scale(1.45);
+  }
+
+  .cities {
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 58%, transparent 100%);
+  }
+
+  .wheel-shade {
+    height: 46%;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.35) 28%, rgba(0, 0, 0, 0.82) 68%, #000 100%);
+  }
+
+  #face-right-b {
+    visibility: hidden;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .clock-scaler,
   .ring circle,
   .label-in,
-  .hub-dot {
+  .hub-dot,
+  .glyph-strip {
     animation: none !important;
     opacity: 1 !important;
   }

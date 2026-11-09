@@ -98,10 +98,30 @@ let lastInput = 0;
 let lastLoopIndex = null;
 let audioCtx = null;
 let clickBuffer = null;
+let sweepBuffer = null;
+let sweepSrc = null;
+let sweepGain = null;
 let pointer = null;
 let suppressClick = false;
+let aligning = null;
 
 let metrics = computeMetrics();
+
+function measureLongest(fontSize) {
+  const probe = document.createElement("span");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = "position:absolute;left:-9999px;top:0;white-space:nowrap;font-family:\"Bebas Neue\",\"Arial Narrow\",Impact,sans-serif;font-weight:400;letter-spacing:0.015em;line-height:0.82;";
+  probe.style.fontSize = `${fontSize}px`;
+  const names = cities.length ? cities.map((city) => city.name) : RAW_CITIES.map(([name]) => name);
+  document.body.appendChild(probe);
+  let max = 0;
+  names.forEach((name) => {
+    probe.textContent = name;
+    max = Math.max(max, probe.getBoundingClientRect().width);
+  });
+  probe.remove();
+  return max;
+}
 
 function computeMetrics() {
   const w = window.innerWidth;
@@ -110,15 +130,17 @@ function computeMetrics() {
   const fallbackClock = Math.min(h * 0.74, w * 0.62, 920);
   const clockSize = clock.getBoundingClientRect().width || fallbackClock;
   const shiftPx = Math.min(120, Math.max(72, w * 0.045));
-  const boxRight = (w - clockSize) / 2 - shiftPx + clockSize;
+  const curve = fontSize * 0.042;
+  const longest = measureLongest(fontSize);
+  const margin = 18 + fontSize * 0.2 + curve * 4;
   return {
     w,
     h,
     fontSize,
     spacing: fontSize * 1.18,
     shiftPx,
-    anchorX: boxRight + fontSize * 0.28,
-    curve: fontSize * 0.042,
+    anchorX: Math.max(8, w - margin - longest),
+    curve,
     rot: 2.05,
   };
 }
@@ -268,15 +290,78 @@ function faceMeta(city) {
   };
 }
 
+const FACE_WAVE = {
+  "face-bottom": 0,
+  "face-code": 40,
+  "face-desc": 80,
+  "face-place": 120,
+  "face-right-b": 60,
+  "face-right-a": 100,
+  "face-left-name": 60,
+  "face-left-b": 100,
+  "face-left-a": 140,
+  "face-offset": 180,
+  "face-zone": 160,
+  "face-world": 200,
+  "face-sub": 240,
+  "face-mark": 280,
+};
+
+function glyphChar(ch) {
+  if (!ch) return "";
+  return ch === " " ? "\u00a0" : ch;
+}
+
+function rollText(el, from, to, delay) {
+  const token = (el.rollToken || 0) + 1;
+  el.rollToken = token;
+  const oldChars = Array.from(from);
+  const nextChars = Array.from(to);
+  const len = Math.max(oldChars.length, nextChars.length);
+  const letter = 34;
+  el.classList.add("face-roll");
+  el.replaceChildren();
+  for (let i = 0; i < len; i += 1) {
+    const prev = oldChars[i] || "";
+    const next = nextChars[i] || "";
+    if (prev === next) {
+      const same = document.createElement("span");
+      same.className = "glyph";
+      same.textContent = glyphChar(next);
+      el.appendChild(same);
+      continue;
+    }
+    const mask = document.createElement("span");
+    mask.className = "glyph-mask";
+    const strip = document.createElement("span");
+    strip.className = "glyph-strip";
+    strip.style.animationDelay = `${delay + i * letter}ms`;
+    const oldGlyph = document.createElement("span");
+    oldGlyph.textContent = glyphChar(prev);
+    const newGlyph = document.createElement("span");
+    newGlyph.textContent = glyphChar(next);
+    strip.append(oldGlyph, newGlyph);
+    mask.appendChild(strip);
+    el.appendChild(mask);
+  }
+  window.setTimeout(() => {
+    if (el.rollToken !== token || el.dataset.value !== to) return;
+    el.classList.remove("face-roll");
+    el.textContent = to;
+  }, delay + Math.max(0, len - 1) * letter + 560);
+}
+
 function writeFace(id, text) {
   const el = document.getElementById(id);
   if (!el || el.dataset.value === text) return;
+  const previous = el.dataset.value != null ? el.dataset.value : el.textContent;
   el.dataset.value = text;
-  el.textContent = text;
-  if (!faceReady) return;
-  el.classList.remove("face-swap");
-  void el.offsetWidth;
-  el.classList.add("face-swap");
+  if (!faceReady || reduce) {
+    el.classList.remove("face-roll");
+    el.textContent = text;
+    return;
+  }
+  rollText(el, previous, text, FACE_WAVE[id] || 0);
 }
 
 function applyFace(city) {
@@ -407,10 +492,13 @@ function setOpen(target) {
     dur: reduce ? 1 : 980,
   };
   openTarget = target;
-  hub.setAttribute("aria-expanded", target === 1 ? "true" : "false");
+  const expanded = target === 1 ? "true" : "false";
+  hub.setAttribute("aria-expanded", expanded);
+  marker.setAttribute("aria-expanded", expanded);
   wheel.setAttribute("aria-hidden", target === 1 ? "false" : "true");
   document.body.classList.toggle("is-open", target === 1);
   if (target === 1) {
+    aligning = null;
     scrollPos = activeIndex;
     scrollVel = 0;
     lastLoopIndex = activeIndex;
@@ -440,6 +528,7 @@ function beginCorrection(newOffset) {
   };
   currentOffset = newOffset;
   offsetCheckedAt = performance.now();
+  if (!reduce && travel > 4) startHandSweep();
 }
 
 function correctionAt(now) {
@@ -459,16 +548,50 @@ function correctionAt(now) {
   };
 }
 
-function selectCity(index) {
-  if (openTarget !== 1) return;
+function shortestDest(index) {
+  const size = cities.length || 1;
+  const base = loopMod(scrollPos, size);
+  let diff = index - base;
+  if (diff > size / 2) diff -= size;
+  if (diff < -size / 2) diff += size;
+  return scrollPos + diff;
+}
+
+function finishSelection(index) {
   const city = cities[index];
+  aligning = null;
   if (!city) return;
   activeIndex = index;
   activeTz = city.tz;
   city.offset = timezoneOffsetMs(city.tz, new Date());
+  scrollPos = index;
+  scrollVel = 0;
+  lastLoopIndex = index;
   beginCorrection(city.offset);
   applyFace(city);
   closeList();
+}
+
+function selectCity(index) {
+  if (openTarget !== 1) return;
+  const city = cities[index];
+  if (!city) return;
+  playCityClick();
+  const dest = shortestDest(index);
+  const dist = Math.abs(dest - scrollPos);
+  if (dist < 0.04 || reduce) {
+    finishSelection(index);
+    return;
+  }
+  aligning = {
+    index,
+    from: scrollPos,
+    to: dest,
+    start: performance.now(),
+    dur: Math.max(460, Math.min(1100, 340 + dist * 120)),
+  };
+  scrollVel = 0;
+  lastInput = performance.now();
 }
 
 function introEase(now) {
@@ -514,7 +637,9 @@ function renderHands(now) {
     });
   }
 
+  const previous = shown;
   shown = next;
+  driveHandSweep(previous, next);
   HAND_KEYS.forEach((key) => {
     handEls[key].style.transform = `rotate(${next[key].toFixed(3)}deg)`;
   });
@@ -538,6 +663,13 @@ function refreshOffset(now) {
 }
 
 function stepScroll(now, dt) {
+  if (aligning) {
+    const t = Math.min(1, (now - aligning.start) / aligning.dur);
+    scrollPos = aligning.from + (aligning.to - aligning.from) * easeInOutCubic(t);
+    tickPassedCities();
+    if (t >= 1) finishSelection(aligning.index);
+    return;
+  }
   if (openTarget !== 1) return;
   const size = cities.length || 1;
   scrollVel *= Math.exp(-dt / 290);
@@ -569,6 +701,89 @@ function ensureClick() {
   }
   if (audioCtx.state === "suspended") audioCtx.resume();
   return audioCtx;
+}
+
+function ensureSweepBuffer(ctx) {
+  if (sweepBuffer) return sweepBuffer;
+  const rate = ctx.sampleRate;
+  const len = Math.floor(rate * 0.5);
+  const buffer = ctx.createBuffer(1, len, rate);
+  const data = buffer.getChannelData(0);
+  let brown = 0;
+  for (let i = 0; i < len; i += 1) {
+    const white = Math.random() * 2 - 1;
+    brown = (brown + 0.02 * white) / 1.02;
+    const flutter = 0.28 + 0.72 * Math.abs(Math.sin(i * 0.021) * Math.sin(i * 0.007));
+    const tooth = Math.random() < 0.018 ? (Math.random() * 2 - 1) * 0.22 : 0;
+    data[i] = brown * flutter + tooth * flutter;
+  }
+  let peak = 0;
+  for (let i = 0; i < len; i += 1) peak = Math.max(peak, Math.abs(data[i]));
+  const scale = peak > 0 ? 0.8 / peak : 1;
+  const fade = Math.floor(rate * 0.018);
+  for (let i = 0; i < len; i += 1) {
+    let edge = 1;
+    if (i < fade) edge = i / fade;
+    else if (i > len - fade) edge = (len - i) / fade;
+    data[i] *= scale * edge;
+  }
+  sweepBuffer = buffer;
+  return buffer;
+}
+
+function stopHandSweep(immediate) {
+  const src = sweepSrc;
+  const gain = sweepGain;
+  sweepSrc = null;
+  sweepGain = null;
+  if (!src || !audioCtx) return;
+  if (immediate) {
+    try { src.stop(); } catch (err) { /* already stopped */ }
+    return;
+  }
+  const now = audioCtx.currentTime;
+  gain.gain.cancelScheduledValues(now);
+  gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), now);
+  gain.gain.linearRampToValueAtTime(0.0001, now + 0.09);
+  try { src.stop(now + 0.1); } catch (err) { /* already stopped */ }
+}
+
+function startHandSweep() {
+  const ctx = ensureClick();
+  if (!ctx) return;
+  stopHandSweep(true);
+  const src = ctx.createBufferSource();
+  src.buffer = ensureSweepBuffer(ctx);
+  src.loop = true;
+  const highpass = ctx.createBiquadFilter();
+  highpass.type = "highpass";
+  highpass.frequency.value = 650;
+  const lowpass = ctx.createBiquadFilter();
+  lowpass.type = "lowpass";
+  lowpass.frequency.value = 2800;
+  const gain = ctx.createGain();
+  gain.gain.value = 0.0001;
+  src.connect(highpass);
+  highpass.connect(lowpass);
+  lowpass.connect(gain);
+  gain.connect(ctx.destination);
+  src.start();
+  sweepSrc = src;
+  sweepGain = gain;
+}
+
+function driveHandSweep(previous, next) {
+  if (!sweepGain || !audioCtx) return;
+  if (!corr) {
+    stopHandSweep(false);
+    return;
+  }
+  let speed = 0;
+  HAND_KEYS.forEach((key) => {
+    speed += Math.abs(next[key] - previous[key]);
+  });
+  const level = Math.min(0.045, 0.01 + speed * 0.005);
+  sweepGain.gain.setTargetAtTime(level, audioCtx.currentTime, 0.04);
 }
 
 function playCityClick() {
@@ -632,8 +847,13 @@ function renderCities(openE) {
     city.el.setAttribute("aria-selected", selected ? "true" : "false");
   });
 
-  marker.style.opacity = String(reveal);
-  marker.style.transform = `translate3d(${(anchorX - Math.max(28, fontSize * 0.42) + enter).toFixed(2)}px, ${(h / 2).toFixed(2)}px, 0) translate(-50%, -50%)`;
+  const dotGap = Math.max(28, fontSize * 0.42);
+  const beside = anchorX - dotGap;
+  const edge = metrics.w - 8 - marker.offsetWidth / 2;
+  const markerX = edge + (beside - edge) * openE;
+  marker.style.right = "auto";
+  marker.style.left = "0";
+  marker.style.transform = `translate3d(${(markerX - marker.offsetWidth / 2).toFixed(2)}px, -50%, 0)`;
 }
 
 function frame(now) {
@@ -652,6 +872,7 @@ function frame(now) {
 
 function onWheel(event) {
   if (openTarget !== 1) return;
+  aligning = null;
   ensureClick();
   event.preventDefault();
   let delta = event.deltaY;
@@ -667,7 +888,7 @@ function onWheel(event) {
 function onPointerDown(event) {
   if (openTarget !== 1) return;
   if (event.button !== undefined && event.button !== 0) return;
-  if (event.target.closest(".hub")) return;
+  if (event.target.closest(".hub, .marker")) return;
   pointer = {
     id: event.pointerId,
     origin: event.clientY,
@@ -682,6 +903,7 @@ function onPointerMove(event) {
   const total = event.clientY - pointer.origin;
   if (!pointer.moved) {
     if (Math.abs(total) < 6) return;
+    aligning = null;
     pointer.moved = true;
     ensureClick();
     pointer.y = event.clientY;
@@ -714,6 +936,7 @@ function endPointer(event) {
 function onKey(event) {
   if (openTarget !== 1) return;
   if (event.key === "Escape") {
+    aligning = null;
     closeList();
     return;
   }
@@ -734,10 +957,17 @@ function onKey(event) {
   }
 }
 
-hub.addEventListener("click", () => {
+function toggleList() {
+  playCityClick();
   if (openTarget === 0) openList();
-  else closeList();
-});
+  else {
+    aligning = null;
+    closeList();
+  }
+}
+
+hub.addEventListener("click", toggleList);
+marker.addEventListener("click", toggleList);
 
 window.addEventListener("wheel", onWheel, { passive: false });
 window.addEventListener("pointerdown", onPointerDown);
@@ -751,4 +981,10 @@ window.addEventListener("resize", () => {
 
 buildRing();
 buildCities();
+metrics = computeMetrics();
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    metrics = computeMetrics();
+  });
+}
 requestAnimationFrame(frame);
