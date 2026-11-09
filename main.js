@@ -104,6 +104,8 @@ let sweepGain = null;
 let pointer = null;
 let suppressClick = false;
 let aligning = null;
+let scrollCommit = false;
+let settledAt = 0;
 
 let metrics = computeMetrics();
 
@@ -497,6 +499,10 @@ function setOpen(target) {
   marker.setAttribute("aria-expanded", expanded);
   wheel.setAttribute("aria-hidden", target === 1 ? "false" : "true");
   document.body.classList.toggle("is-open", target === 1);
+  if (target === 0) {
+    scrollCommit = false;
+    settledAt = 0;
+  }
   if (target === 1) {
     aligning = null;
     scrollPos = activeIndex;
@@ -683,6 +689,28 @@ function stepScroll(now, dt) {
 
   scrollPos -= size * Math.floor(scrollPos / size);
   tickPassedCities();
+
+  if (!scrollCommit || pointer) {
+    settledAt = 0;
+    return;
+  }
+  const near = Math.abs(scrollPos - Math.round(scrollPos)) < 0.02;
+  const slow = Math.abs(scrollVel) < 0.00015;
+  const idle = now - lastInput > 180;
+  if (!(near && slow && idle)) {
+    settledAt = 0;
+    return;
+  }
+  if (!settledAt) {
+    settledAt = now;
+    return;
+  }
+  if (now - settledAt < 240) return;
+  const index = loopMod(Math.round(scrollPos), cities.length);
+  scrollCommit = false;
+  settledAt = 0;
+  playCityClick();
+  finishSelection(index);
 }
 
 function ensureClick() {
@@ -871,7 +899,13 @@ function frame(now) {
 }
 
 function onWheel(event) {
-  if (openTarget !== 1) return;
+  if (openTarget !== 1) {
+    scrollCommit = true;
+    settledAt = 0;
+    openList();
+  } else if (scrollCommit) {
+    settledAt = 0;
+  }
   aligning = null;
   ensureClick();
   event.preventDefault();
@@ -886,7 +920,6 @@ function onWheel(event) {
 }
 
 function onPointerDown(event) {
-  if (openTarget !== 1) return;
   if (event.button !== undefined && event.button !== 0) return;
   if (event.target.closest(".hub, .marker")) return;
   pointer = {
@@ -895,6 +928,7 @@ function onPointerDown(event) {
     y: event.clientY,
     t: performance.now(),
     moved: false,
+    fromClosed: openTarget !== 1,
   };
 }
 
@@ -903,6 +937,13 @@ function onPointerMove(event) {
   const total = event.clientY - pointer.origin;
   if (!pointer.moved) {
     if (Math.abs(total) < 6) return;
+    if (pointer.fromClosed || openTarget !== 1) {
+      scrollCommit = true;
+      settledAt = 0;
+      openList();
+    } else if (scrollCommit) {
+      settledAt = 0;
+    }
     aligning = null;
     pointer.moved = true;
     ensureClick();
@@ -959,11 +1000,15 @@ function onKey(event) {
 
 function toggleList() {
   playCityClick();
-  if (openTarget === 0) openList();
-  else {
+  if (openTarget === 0 || scrollCommit) {
+    scrollCommit = false;
+    settledAt = 0;
     aligning = null;
-    closeList();
+    if (openTarget === 0) openList();
+    return;
   }
+  aligning = null;
+  closeList();
 }
 
 hub.addEventListener("click", toggleList);
