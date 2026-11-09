@@ -845,6 +845,14 @@ function tickPassedCities() {
   lastLoopIndex = index;
   const count = Math.min(Math.abs(steps), 8);
   for (let i = 0; i < count; i += 1) window.setTimeout(playCityClick, i * 22);
+  vibrateTicks(count);
+}
+
+function vibrateTicks(count) {
+  if (!navigator.vibrate || count < 1) return;
+  const pattern = [];
+  for (let i = 0; i < count; i += 1) pattern.push(14, 20);
+  navigator.vibrate(pattern);
 }
 
 function renderCities(openE) {
