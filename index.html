@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Worldwide Timezone</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="stage">
+    <div class="clock" id="clock">
+      <div class="clock-scaler">
+        <svg class="ring" id="ring" viewBox="0 0 100 100" aria-hidden="true"></svg>
+
+        <div class="labels" aria-hidden="true">
+          <div class="label brand">
+            <div class="label-in">
+              <div id="face-mark">IAAB</div>
+              <div id="face-sub">+0</div>
+              <div>-</div>
+              <div>-</div>
+              <div>-</div>
+              <div id="face-world">&gt; WORLD</div>
+              <div id="face-zone">TIMEZONE</div>
+            </div>
+          </div>
+
+          <div class="label plus9"><div class="label-in" id="face-offset">+0</div></div>
+
+          <div class="label pacific">
+            <div class="label-in">
+              <span class="plus10" id="face-left-a">+1</span>
+              <span class="pac-sub">
+                <span id="face-left-b">[-]1</span>
+                <span id="face-left-name">LOCAL</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="label right-off">
+            <div class="label-in">
+              <span id="face-right-a">[-]2</span>
+              <span id="face-right-b">[-]4</span>
+            </div>
+          </div>
+
+          <div class="label ny">
+            <div class="label-in">
+              <div id="face-place">LOCAL</div>
+              <div id="face-desc">LOCAL TIME</div>
+              <div id="face-code">&gt; UTC</div>
+              <div>-</div>
+              <div>-</div>
+            </div>
+          </div>
+
+          <div class="label south"><div class="label-in" id="face-bottom">WORLD</div></div>
+        </div>
+
+        <div class="hands" id="hands">
+          <div class="hand zone" id="handZone"><span class="tail"></span><span class="blade"></span></div>
+          <div class="hand hour" id="handHour"><span class="tail"></span><span class="blade"></span></div>
+          <div class="hand minute" id="handMinute"><span class="tail"></span><span class="blade"></span></div>
+          <div class="hand second" id="handSecond"><span class="tail"></span><span class="blade"></span></div>
+        </div>
+
+        <button class="hub" id="hub" type="button" aria-label="Choose a city" aria-expanded="false" aria-controls="cities">
+          <span class="hub-dot"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="wheel" id="wheel" aria-hidden="true">
+      <div class="marker" id="marker"></div>
+      <div class="cities" id="cities" role="listbox" aria-label="Cities"></div>
+    </div>
+  </main>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+:root {
+  --gold: #ffd000;
+  --blue: #2b5cff;
+  --red: #ff2424;
+  --ink: #f4f4f4;
+  --clock: min(74vh, 62vw, 920px);
+  --thick: calc(var(--clock) * 0.0092);
+  --mid: calc(var(--clock) * 0.0078);
+  --thin: calc(var(--clock) * 0.0034);
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  color: var(--ink);
+  overflow: hidden;
+  touch-action: none;
+}
+
+body {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+body.is-open {
+  cursor: grab;
+}
+
+body.is-dragging,
+body.is-dragging .city {
+  cursor: grabbing;
+}
+
+.stage {
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.clock {
+  position: relative;
+  z-index: 2;
+  width: var(--clock);
+  height: var(--clock);
+  will-change: transform;
+}
+
+.clock-scaler {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: clockIn 1.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ring {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+
+.ring circle {
+  opacity: 0;
+  animation: dotIn 0.55s ease forwards;
+}
+
+.labels {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  font-size: calc(var(--clock) * 0.023);
+  line-height: 1.28;
+  letter-spacing: 0.035em;
+  font-weight: 400;
+  pointer-events: none;
+}
+
+.label {
+  position: absolute;
+  white-space: nowrap;
+}
+
+.label-in {
+  animation: labelIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.brand { left: 50%; top: 13.2%; transform: translateX(-50%); text-align: center; }
+.brand .label-in { animation-delay: 0.18s; }
+
+.plus9 { left: 27.5%; top: 29%; }
+.plus9 .label-in { animation-delay: 0.32s; }
+
+.pacific { left: 0.2%; top: 45.2%; }
+.pacific .label-in {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.45em;
+  animation-delay: 0.42s;
+}
+
+.pac-sub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.right-off {
+  right: 0.2%;
+  top: 45.2%;
+  transition: opacity 0.45s ease;
+}
+body.is-open .right-off { opacity: 0; }
+.right-off .label-in {
+  display: flex;
+  gap: 2.6em;
+  animation-delay: 0.42s;
+}
+
+.ny {
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.ny .label-in { animation-delay: 0.55s; }
+
+.south {
+  left: 50%;
+  bottom: 12.8%;
+  transform: translateX(-50%);
+}
+.south .label-in { animation-delay: 0.7s; }
+
+.st span {
+  font-size: 0.58em;
+  position: relative;
+  top: -0.62em;
+  margin-left: 0.06em;
+  letter-spacing: 0;
+}
+
+.hands {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  will-change: transform;
+}
+
+.blade,
+.tail {
+  position: absolute;
+  left: 0;
+  display: block;
+  background: #fff;
+  transform: translateX(-50%);
+}
+
+.blade { bottom: 0; }
+.tail { top: 0; }
+
+.hand.hour .blade { height: calc(var(--clock) * 0.25); width: var(--thick); }
+.hand.hour .tail { height: calc(var(--clock) * 0.05); width: var(--thick); }
+
+.hand.minute .blade { height: calc(var(--clock) * 0.36); width: var(--mid); }
+.hand.minute .tail { height: calc(var(--clock) * 0.045); width: var(--mid); }
+
+.hand.second .blade,
+.hand.second .tail { background: var(--blue); }
+.hand.second .blade { height: calc(var(--clock) * 0.4); width: var(--thin); }
+.hand.second .tail { height: calc(var(--clock) * 0.064); width: var(--thin); }
+
+.hand.zone .blade,
+.hand.zone .tail { background: var(--red); }
+.hand.zone .blade { height: calc(var(--clock) * 0.385); width: var(--thin); }
+.hand.zone .tail { height: calc(var(--clock) * 0.08); width: var(--thin); }
+
+.hub {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 4;
+  width: 76px;
+  height: 76px;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.hub-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--clock) * 0.037);
+  height: calc(var(--clock) * 0.037);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--gold);
+  transform: translate(-50%, -50%);
+  animation: hubIn 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+.face-swap {
+  animation: faceSwap 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hub:focus-visible .hub-dot {
+  outline: 1px solid #fff;
+  outline-offset: 4px;
+}
+
+.wheel {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.cities {
+  position: absolute;
+  inset: 0;
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 5%, #000 95%, transparent 100%);
+}
+
+.marker {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 14px rgba(43, 92, 255, 0.75);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.city {
+  position: absolute;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0.04em 0.08em;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-family: "Bebas Neue", "Arial Narrow", Impact, sans-serif;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+  line-height: 0.82;
+  white-space: nowrap;
+  transform-origin: 0% 50%;
+  opacity: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  will-change: transform, opacity, filter;
+}
+
+.city:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 3px;
+}
+
+@keyframes clockIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes dotIn {
+  to { opacity: 0.4; }
+}
+
+@keyframes labelIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hubIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.35); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes faceSwap {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clock-scaler,
+  .ring circle,
+  .label-in,
+  .hub-dot {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+
+  .ring circle { opacity: 0.4 !important; }
+
+  .hub-dot { transform: translate(-50%, -50%); }
+}
